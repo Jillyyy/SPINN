@@ -15,6 +15,8 @@ import config
 import constants
 from .fits_dict import FitsDict
 
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 class Trainer(BaseTrainer):
     
@@ -114,7 +116,7 @@ class Trainer(BaseTrainer):
         gt_pose = input_batch['pose'] # SMPL pose parameters
         gt_betas = input_batch['betas'] # SMPL beta parameters
         gt_joints = input_batch['pose_3d'] # 3D pose
-        has_smpl = input_batch['has_smpl'].byte() # flag that indicates whether SMPL parameters are valid
+        has_smpl = input_batch['has_smpl'].bool() # flag that indicates whether SMPL parameters are valid
         has_pose_3d = input_batch['has_pose_3d'].byte() # flag that indicates whether 3D pose is valid
         is_flipped = input_batch['is_flipped'] # flag that indicates whether image was flipped during data augmentation
         rot_angle = input_batch['rot_angle'] # rotation angle used for data augmentation

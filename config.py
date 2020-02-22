@@ -5,15 +5,33 @@ Things you need to change: *_ROOT that indicate the path to each dataset
 """
 from os.path import join
 
-H36M_ROOT = ''
-LSP_ROOT = ''
-LSP_ORIGINAL_ROOT = ''
-LSPET_ROOT = ''
-MPII_ROOT = ''
-COCO_ROOT = ''
-MPI_INF_3DHP_ROOT = ''
-PW3D_ROOT = ''
-UPI_S1H_ROOT = ''
+H36M_ROOT = '/dataset/h36m/SMPL_H36M'
+# LSP_ROOT = ''
+# LSP_ORIGINAL_ROOT = ''
+LSPET_ROOT = '/dataset/lspet/hr-lspet'
+# MPII_ROOT = ''
+# COCO_ROOT = ''
+MPI_INF_3DHP_ROOT = '/dataset/mpi_inf_3dhp'
+PW3D_ROOT = '/dataset/PW3D'
+# UPI_S1H_ROOT = ''
+
+# Define paths to each dataset
+# H36M_ROOT = '/dataset/h36m/Human'
+# H36M_TRAIN_ROOT = '/dataset/h36m/SMPL_H36M'
+H36M_TRAIN_ROOT = '/dataset/h36m/SMPL_H36M/crop'
+LSP_ROOT = '/dataset/lsp'
+LSP_ORIGINAL_ROOT = '/dataset/lsp_origin'
+LSP_EXTENDED_ROOT = '/dataset/lsp_extended'
+UPI_S1H_ROOT = '/dataset/upi-s1h'
+MPII_ROOT = '/dataset/mpii'
+COCO_ROOT = '/dataset/coco'
+UP_3D_ROOT = '/dataset/up-3d'
+# UP_3D_ROOT = '/dataset/up-3d/crop'
+# MPI_INF_3DH_ROOT = '/dataset/mpi_inf_3dhp/new_crop'
+# MPI_INF_3DH_ROOT = '/dataset/mpi_inf_3dhp/new_crop_withEndPoint'
+MPI_INF_3DH_TEST_ROOT = '/dataset/mpi_inf_3dhp/test_new_crop'
+# MOSH_DATA_PARH = 'datasets/extras/h36m_train.npz'
+MOSH_DATA_PARH = 'datasets/extras/merge_train.npz'
 
 # Output folder to save test/train npz files
 DATASET_NPZ_PATH = 'data/dataset_extras'

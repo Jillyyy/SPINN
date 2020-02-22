@@ -181,11 +181,22 @@ class BaseDataset(Dataset):
         flip, pn, rot, sc = self.augm_params()
         
         # Load image
-        imgname = join(self.img_dir, self.imgname[index])
+        # print(self.img_dir)
+        # print(type(self.img_dir))
+        # print(self.imgname[index])
+        # print(type(str(self.imgname[index])))
+
+        try: 
+            imgname = join(self.img_dir, self.imgname[index].decode("utf-8"))
+        except:
+            imgname = join(self.img_dir, self.imgname[index])
         try:
             img = cv2.imread(imgname)[:,:,::-1].copy().astype(np.float32)
+            # print(imgname)
+            # print(1111)
         except TypeError:
             print(imgname)
+            # print(2222)
         orig_shape = np.array(img.shape)[:2]
 
         # Get SMPL parameters, if available
