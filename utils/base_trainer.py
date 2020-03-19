@@ -13,7 +13,7 @@ class BaseTrainer(object):
     """Base class for Trainer objects.
     Takes care of checkpointing/logging/resuming training.
     """
-    def __init__(self, options):
+    def __init__(self, options, cfg):
         self.options = options
         self.endtime = time.time() + self.options.time_to_run
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

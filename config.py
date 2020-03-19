@@ -78,3 +78,6 @@ VERTEX_TEXTURE_FILE = 'data/vertex_texture.npy'
 STATIC_FITS_DIR = 'data/static_fits'
 SMPL_MEAN_PARAMS = 'data/smpl_mean_params.npz'
 SMPL_MODEL_DIR = 'data/smpl'
+
+
+# USE_TARGET_WEIGHT: true

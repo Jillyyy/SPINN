@@ -3,11 +3,39 @@ import json
 import argparse
 import numpy as np
 from collections import namedtuple
+import sys
+sys.path.append("..") # Adds higher directory to python modules path.
+from config_hr import cfg
+from config_hr import update_config
 
 class TrainOptions():
 
     def __init__(self):
         self.parser = argparse.ArgumentParser()
+        self.parser.add_argument('--cfg',
+                        help='experiment configure file name',
+                        required=True,
+                        type=str)
+        self.parser.add_argument('opts',
+                            help="Modify config options using the command-line",
+                            default=None,
+                            nargs=argparse.REMAINDER)
+        self.parser.add_argument('--modelDir',
+                            help='model directory',
+                            type=str,
+                            default='')
+        self.parser.add_argument('--logDir',
+                            help='log directory',
+                            type=str,
+                            default='')
+        self.parser.add_argument('--dataDir',
+                            help='data directory',
+                            type=str,
+                            default='')
+        self.parser.add_argument('--prevModelDir',
+                            help='prev Model directory',
+                            type=str,
+                            default='')
 
         req = self.parser.add_argument_group('Required')
         req.add_argument('--name', required=True, help='Name of the experiment')
@@ -58,6 +86,8 @@ class TrainOptions():
     def parse_args(self):
         """Parse input arguments."""
         self.args = self.parser.parse_args()
+        # self.args = parse_args()
+        update_config(cfg, self.args)
         # If config file is passed, override all arguments with the values from the config file
         if self.args.from_json is not None:
             path_to_json = os.path.abspath(self.args.from_json)
@@ -74,7 +104,7 @@ class TrainOptions():
             if not os.path.exists(self.args.checkpoint_dir):
                 os.makedirs(self.args.checkpoint_dir)
             self.save_dump()
-            return self.args
+            return self.args, cfg
 
     def save_dump(self):
         """Store all argument values to a json file.
