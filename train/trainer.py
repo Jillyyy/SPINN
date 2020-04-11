@@ -9,7 +9,7 @@ from models import hmr, SMPL
 from smplify import SMPLify
 from utils.geometry import batch_rodrigues, perspective_projection, estimate_translation
 from utils.renderer import Renderer
-from utils import BaseTrainer
+from utils.base_trainer_origin import BaseTrainer
 
 import config
 import constants

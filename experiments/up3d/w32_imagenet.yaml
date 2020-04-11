@@ -25,7 +25,7 @@ DATASET:
 MODEL:
   INIT_WEIGHTS: true
   NAME: pose_hrnet
-  NUM_JOINTS: 16
+  NUM_JOINTS: 14
   PRETRAINED: 'models/pytorch/imagenet/hrnet_w32-36af842e.pth'
   # PRETRAINED: '/project/SPINN/models/pytorch/pose_mpii/pose_hrnet_w32_256x256.pth'
   TARGET_TYPE: gaussian

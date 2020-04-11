@@ -93,7 +93,7 @@ class HMR_HR(nn.Module):
         if init_cam is None:
             init_cam = self.init_cam.expand(batch_size, -1)
 
-        xf = self.layer(x)
+        xf = self.layer(x.reshape(batch_size,-1))
 
         pred_pose = init_pose
         pred_shape = init_shape

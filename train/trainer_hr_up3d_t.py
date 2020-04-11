@@ -1,16 +1,23 @@
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 import numpy as np
 from torchgeometry import angle_axis_to_rotation_matrix, rotation_matrix_to_angle_axis
 import cv2
 
-from datasets import MPIIDataset
+from datasets import UP3DDataset
 from models import HSModel, SMPL
 from smplify import SMPLify
 from utils.geometry import batch_rodrigues, perspective_projection, estimate_translation
 from utils.renderer import Renderer
 from utils import BaseTrainer
 from utils.loss import JointsMSELoss
+from utils.evaluate import accuracy
+from utils.vis import save_debug_images
+from utils.pose_utils import reconstruction_error
+from datasets.base_JointsDataset import BaseJointsDataset
+
 
 import config
 import constants
@@ -22,10 +29,19 @@ warnings.filterwarnings("ignore", category=UserWarning)
 class HSTrainer(BaseTrainer):
     
     def init_fn(self):
-        self.train_ds = MPIIDataset(self.options, self.cfg, ignore_3d=self.options.ignore_3d, is_train=True)
+        # create training dataset
+        self.train_ds = UP3DDataset(self.options, self.cfg, ignore_3d=self.options.ignore_3d, is_train=True)
+        # create test dataset
+        self.test_ds_name = 'up-3d'
+        self.test_ds = BaseJointsDataset(self.options, self.cfg, self.test_ds_name, is_train=False)
+        self.test_num_workers = 8
+        self.test_batch_size = 32
+        self.test_data_loader = DataLoader(self.test_ds, batch_size=self.test_batch_size\
+            , shuffle=False, num_workers=self.test_num_workers)
+
 
         self.model = HSModel(self.cfg, is_train = True, smpl_mean_params=config.SMPL_MEAN_PARAMS).to(self.device)
-        print(self.model)
+        # print(self.model)
         self.optimizer = torch.optim.Adam(params=self.model.parameters(),
                                           lr=self.options.lr,
                                           weight_decay=0)
@@ -162,6 +178,7 @@ class HSTrainer(BaseTrainer):
         # Feed images in the network to predict camera and SMPL parameters
         outputs, pred_rotmat, pred_betas, pred_camera = self.model(images)
         
+
         # add jointsMSELoss
         if isinstance(outputs, list):
             loss_jointsMSE = self.criterion_hm_keypoints(outputs[0], target, target_weight)
@@ -171,7 +188,16 @@ class HSTrainer(BaseTrainer):
             output = outputs
             loss_jointsMSE = self.criterion_hm_keypoints(output, target, target_weight)
 
+        # print(loss_jointsMSE)
         # loss_jointsMSE = self.criterion_hm_keypoints()
+        _, _, _, pred = accuracy(output.detach().cpu().numpy(),
+                                 target.detach().cpu().numpy())
+        # print(pred.shape)
+        if self.step_count % 100 == 0:
+            # prefix = 'test_%d' % self.step_count
+            prefix = 'test_0'
+            save_debug_images(self.cfg, images, input_batch, target, pred*4, output,
+                              prefix)
 
         pred_output = self.smpl(betas=pred_betas, body_pose=pred_rotmat[:,1:], global_orient=pred_rotmat[:,0].unsqueeze(1), pose2rot=False)
         pred_vertices = pred_output.vertices
@@ -316,3 +342,167 @@ class HSTrainer(BaseTrainer):
         self.summary_writer.add_image('opt_shape', images_opt, self.step_count)
         for loss_name, val in losses.items():
             self.summary_writer.add_scalar(loss_name, val, self.step_count)
+
+    def test_summaries(self, mpjpe, recon_err, shape_err):
+        print()
+        print('*** Test Results on %s***' %self.test_ds_name)
+        print('MPJPE (NonParam): ' + str(1000 * mpjpe.mean()))
+        print('Reconstruction Error (NonParam): ' + str(1000 * recon_err.mean()))
+        print('Shape Error (NonParam): ' + str(1000 * shape_err.mean()))
+        print()
+        # self.summary_writer.add_image('min_mpjpe_imgs', all_min_rend_imgs, self.step_count)
+        # self.summary_writer.add_image('max_mpjpe_imgs', all_max_rend_imgs, self.step_count)
+        self.summary_writer.add_scalars('test_keypoints_3d', {'mpjpe': 1000 * mpjpe.mean()}, self.step_count)
+        self.summary_writer.add_scalars('test_keypoints_3d', {'recon': 1000 * recon_err.mean()}, self.step_count)
+        self.summary_writer.add_scalars('test_keypoints_3d', {'shape_err': 1000 * shape_err.mean()}, self.step_count)
+
+    def test(self):
+        self.model.eval()
+        batch_size = self.test_batch_size
+        device = self.device
+
+        # Pose metrics
+        # MPJPE and Reconstruction error for the non-parametric and parametric shapes
+        mpjpe = np.zeros(len(self.test_ds))
+        recon_err = np.zeros(len(self.test_ds))
+        shape_err = np.zeros(len(self.test_ds))
+
+        min_mpjpes = []
+        max_mpjpes = []
+        min_rend_imgs = []
+        max_rend_imgs = []
+        # tt = 0
+        for step, batch in enumerate(tqdm(self.test_data_loader, desc='Eval', total=len(self.test_data_loader))):
+
+            # tt += 1
+            # if tt > 20:
+            #     break
+            # Get ground truth annotations from the batch
+            gt_pose = batch['pose'].to(device)
+            gt_betas = batch['betas'].to(device)
+            gt_out = self.smpl(betas=gt_betas, body_pose=gt_pose[:,3:], global_orient=gt_pose[:,:3])
+            gt_model_joints = gt_out.joints[:,:24,:]
+            gt_vertices = gt_out.vertices
+            # gt_vertices = self.smpl(gt_pose, gt_betas)
+            images = batch['img'].to(device)
+            curr_batch_size = images.shape[0]
+
+            with torch.no_grad():
+                outputs, pred_rotmat, pred_betas, pred_camera = self.model(images)
+                pred_output = self.smpl(betas=pred_betas, body_pose=pred_rotmat[:,1:], global_orient=pred_rotmat[:,0].unsqueeze(1), pose2rot=False)
+                pred_vertices = pred_output.vertices
+                pred_joints = pred_output.joints[:,:24,:]
+                # feat = self.resnet(images)
+                # pred_theta, pred_beta, pred_camera_with_global_rot, nnz_beta, recover_theta_norm = self.sc_fc(feat)
+                # pred_camera = pred_camera_with_global_rot[:,:3] #(B,3)
+                # pred_global_rot = pred_camera_with_global_rot[:,3:][:,None,:] #(B,1,9)
+                # # pred_theta = torch.cat((pred_global_rot,pred_theta),dim=1) #(B,24,4)
+                # pose_cube = pred_theta.view(-1, 4) # (batch_size * 23,  4)
+                # R = quat2mat(pose_cube).view(curr_batch_size, 23, 3, 3)
+                # pred_rotmat = R.view(curr_batch_size, 23, 3, 3)
+                # pred_global_rot = pred_global_rot.view(curr_batch_size, 1, 3, 3)
+                # pred_rotmat = torch.cat((pred_global_rot,pred_rotmat),dim=1) #(B,24,3,3)
+                # pred_vertices = self.smpl(pred_rotmat, pred_beta) 
+
+
+            # # Regressor broadcasting
+            # J_regressor_batch = J_regressor[None, :].expand(pred_vertices.shape[0], -1, -1).to(device)
+
+            # # Get 14 ground truth joints
+            # gt_keypoints_3d = batch['pose_3d'].cuda()
+            # gt_keypoints_3d = gt_keypoints_3d[:, cfg.J24_TO_J14, :-1]
+
+            # # Get 14 predicted joints 
+            # pred_keypoints_3d = torch.matmul(J_regressor_batch, pred_vertices)
+            # pred_pelvis = pred_keypoints_3d[:, [0],:].clone()
+            # pred_keypoints_3d = pred_keypoints_3d[:, cfg.H36M_TO_J14, :]
+            # pred_keypoints_3d = pred_keypoints_3d - pred_pelvis 
+            
+
+            # Compute error metrics
+
+            # Absolute error (MPJPE)
+            error = torch.sqrt(((pred_joints - gt_model_joints) ** 2).sum(dim=-1)).mean(dim=-1).cpu().numpy()
+            mpjpe[step * batch_size:step * batch_size + curr_batch_size] = error
+
+            # Reconstuction_error
+            r_error = reconstruction_error(pred_joints.cpu().numpy(), gt_model_joints.cpu().numpy(), reduction=None)
+            recon_err[step * batch_size:step * batch_size + curr_batch_size] = r_error
+
+            # Shape error
+            se = torch.sqrt(((pred_vertices - gt_vertices) ** 2).sum(dim=-1)).mean(dim=-1).cpu().numpy()
+            shape_err[step * batch_size:step * batch_size + curr_batch_size] = se
+
+            # # visualize min & max
+            # min_mpjpe = np.min(error)
+            # max_mpjpe = np.max(error)
+            # # print(type(min_mpjpe))
+            # min_mpjpes.append(min_mpjpe)
+            # max_mpjpes.append(max_mpjpe)
+            # # print(np.where(error==np.min(error)))
+            # min_idx = int(np.where(error==np.min(error))[0][0])
+            # max_idx = int(np.where(error==np.max(error))[0][0])
+
+            # gt_keypoints_2d = batch['keypoints'].cpu().numpy()
+            # gt_endpoint_2d = batch['endpoint_2d'].cpu().numpy()
+            # gt_allpoints_2d = np.concatenate((gt_keypoints_2d,gt_endpoint_2d),axis=1)
+            # pred_keypoints_3d_1 = self.smpl.get_joints(pred_vertices)
+            # pred_keypoints_2d = orthographic_projection(pred_keypoints_3d_1, pred_camera)[:, :, :2]
+            
+
+            # # visualize min
+            # img = batch['img_orig'][min_idx].cpu().numpy().transpose(1,2,0)
+            # # Get LSP keypoints from the full list of keypoints
+            # gt_keypoints_2d_ = gt_keypoints_2d[min_idx, self.to_lsp]
+            # gt_allpoints_2d_ = gt_allpoints_2d[min_idx, self.to_all]
+            # pred_keypoints_2d_ = pred_keypoints_2d.cpu().numpy()[min_idx, self.to_lsp]
+            # # Get GraphCNN and SMPL vertices for the particular example
+            # vertices = pred_vertices[min_idx].cpu().numpy()
+            # cam = pred_camera[min_idx].cpu().numpy()
+            # # Visualize reconstruction and detected pose
+            # min_rend_img = visualize_reconstruction_allkp(img, self.options.img_res, gt_keypoints_2d_, vertices, pred_keypoints_2d_, cam, self.renderer, gt_allpoints_2d_)
+            # min_rend_img = min_rend_img.transpose(2,0,1)
+            # min_rend_imgs.append(torch.from_numpy(min_rend_img))
+
+            # # visualize max
+            # img = batch['img_orig'][max_idx].cpu().numpy().transpose(1,2,0)
+            # # Get LSP keypoints from the full list of keypoints
+            # gt_keypoints_2d_ = gt_keypoints_2d[max_idx, self.to_lsp]
+            # gt_allpoints_2d_ = gt_allpoints_2d[max_idx, self.to_all]
+            # pred_keypoints_2d_ = pred_keypoints_2d.cpu().numpy()[max_idx, self.to_lsp]
+            # # Get GraphCNN and SMPL vertices for the particular example
+            # vertices = pred_vertices[max_idx].cpu().numpy()
+            # cam = pred_camera[max_idx].cpu().numpy()
+            # # Visualize reconstruction and detected pose
+            # max_rend_img = visualize_reconstruction_allkp(img, self.options.img_res, gt_keypoints_2d_, vertices, pred_keypoints_2d_, cam, self.renderer, gt_allpoints_2d_)
+            # max_rend_img = max_rend_img.transpose(2,0,1)
+            # max_rend_imgs.append(torch.from_numpy(max_rend_img))
+
+        # min_mpjpes = np.array(min_mpjpes) 
+        # max_mpjpes = np.array(max_mpjpes)
+
+        # min_k = 16
+        # min_k_idx = min_mpjpes.argsort()[0:min_k]
+        # print(min_k_idx)
+
+        # max_k = 16
+        # max_k_idx = max_mpjpes.argsort()[::-1][0:max_k]
+
+        # all_min_rend_imgs = []
+        # for dd in range(min_k):
+        #     all_min_rend_imgs.append(min_rend_imgs[min_k_idx[dd]])
+        # all_max_rend_imgs = []
+        # for dd in range(max_k):
+        #     all_max_rend_imgs.append(max_rend_imgs[max_k_idx[dd]])
+        # # all_min_rend_imgs = min_rend_imgs[min_k_idx]
+        # # all_max_rend_imgs = max_rend_imgs[max_k_idx]
+
+        
+        # all_min_rend_imgs = make_grid(all_min_rend_imgs, nrow=4)
+        # all_max_rend_imgs = make_grid(all_max_rend_imgs, nrow=4)
+
+
+        # out_args = [mpjpe, recon_err, all_min_rend_imgs, all_max_rend_imgs]
+        out_args = [mpjpe, recon_err, shape_err]
+
+        return out_args

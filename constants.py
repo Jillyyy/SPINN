@@ -1,5 +1,5 @@
 FOCAL_LENGTH = 5000.
-IMG_RES = 224
+IMG_RES = 256
 
 # Mean and standard deviation for normalizing input image
 IMG_NORM_MEAN = [0.485, 0.456, 0.406]
@@ -17,7 +17,7 @@ JOINT_NAMES = [
 'OP Neck',
 'OP RShoulder',
 'OP RElbow',
-'OP RWrist',
+'OP RWrist', 
 'OP LShoulder',
 'OP LElbow',
 'OP LWrist',

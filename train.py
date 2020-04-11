@@ -1,4 +1,4 @@
-from utils import TrainOptions
+from utils.train_options_origin import TrainOptions
 from train import Trainer
 
 if __name__ == '__main__':

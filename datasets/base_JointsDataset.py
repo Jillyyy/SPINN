@@ -18,7 +18,7 @@ class BaseJointsDataset(Dataset):
     You need to update the path to each dataset in utils/config.py.
     """
 
-    def __init__(self, options, dataset, ignore_3d=False, use_augmentation=True, is_train=True):
+    def __init__(self, options, cfg,  dataset, ignore_3d=False, use_augmentation=True, is_train=True):
         super(BaseJointsDataset, self).__init__()
         self.dataset = dataset
         self.is_train = is_train
@@ -27,12 +27,20 @@ class BaseJointsDataset(Dataset):
         self.normalize_img = Normalize(mean=constants.IMG_NORM_MEAN, std=constants.IMG_NORM_STD)
         self.data = np.load(config.DATASET_FILES[is_train][dataset])
         self.imgname = self.data['imgname']
-        self.num_joints = 16
-        self.target_type = 'gaussian'
-        self.heatmap_size = [64, 64]
-        self.sigma = 2
-        self.use_different_joints_weight = True
+        self.num_joints = cfg.MODEL.NUM_JOINTS
+
+        self.target_type = cfg.MODEL.TARGET_TYPE
+        self.image_size = np.array(cfg.MODEL.IMAGE_SIZE)
+        self.heatmap_size = np.array(cfg.MODEL.HEATMAP_SIZE)
+        self.sigma = cfg.MODEL.SIGMA
+        self.use_different_joints_weight = cfg.LOSS.USE_DIFFERENT_JOINTS_WEIGHT
         self.joints_weight = 1
+
+        # self.target_type = 'gaussian'
+        # self.heatmap_size = [64, 64]
+        # self.sigma = 2
+        # self.use_different_joints_weight = True
+        # self.joints_weight = 1
 
         # Get paths to gt masks, if available
         try:
@@ -178,14 +186,19 @@ class BaseJointsDataset(Dataset):
         pose = pose.astype('float32')
         return pose
 
-    def generate_target(self, pose_3d):
+    def generate_target(self, keypoints):
         '''
         :param joints:  [num_joints, 3]
         :param joints_vis: [num_joints, 3]
         :return: target, target_weight(1: visible, 0: invisible)
         '''
-        target_weight = np.ones((pose_3d.shape[0], 1), dtype=np.float32)
-        target_weight[:, 0] = pose_3d[:, 3]
+        # print(keypoints)
+        keypoints_14 = keypoints[25:39,:]
+        # keypoints1 = keypoints.copy()
+        # keypoints1[:,:2] = (keypoints1[:,:2] + 1) * constants.IMG_RES / 2 - 1
+        # keypoints_14 = keypoints1[25:39,:]
+        target_weight = np.ones((keypoints_14.shape[0], 1), dtype=np.float32)
+        target_weight[:, 0] = keypoints_14[:, 2]
 
         assert self.target_type == 'gaussian', \
             'Only support gaussian map now!'
@@ -198,13 +211,21 @@ class BaseJointsDataset(Dataset):
 
             tmp_size = self.sigma * 3
 
+            # print(keypoints)
+
             for joint_id in range(self.num_joints):
                 feat_stride = constants.IMG_RES / self.heatmap_size
-                mu_x = int(pose_3d[joint_id][0] / feat_stride[0] + 0.5)
-                mu_y = int(pose_3d[joint_id][1] / feat_stride[1] + 0.5)
+                # print(feat_stride)
+                # print(keypoints_14[joint_id])
+                mu_x = int(keypoints_14[joint_id][0] / feat_stride[0] + 0.5)
+                mu_y = int(keypoints_14[joint_id][1] / feat_stride[1] + 0.5)
+                # print(mu_x)
+                # print(mu_y)
                 # Check that any part of the gaussian is in-bounds
                 ul = [int(mu_x - tmp_size), int(mu_y - tmp_size)]
                 br = [int(mu_x + tmp_size + 1), int(mu_y + tmp_size + 1)]
+                # print(ul)
+                # print(br)
                 if ul[0] >= self.heatmap_size[0] or ul[1] >= self.heatmap_size[1] \
                         or br[0] < 0 or br[1] < 0:
                     # If not, just return the image as is
@@ -222,10 +243,13 @@ class BaseJointsDataset(Dataset):
                 # Usable gaussian range
                 g_x = max(0, -ul[0]), min(br[0], self.heatmap_size[0]) - ul[0]
                 g_y = max(0, -ul[1]), min(br[1], self.heatmap_size[1]) - ul[1]
+                # print(g_x)
+                # print(g_y)
                 # Image range
                 img_x = max(0, ul[0]), min(br[0], self.heatmap_size[0])
                 img_y = max(0, ul[1]), min(br[1], self.heatmap_size[1])
-
+                # print(img_x)
+                # print(img_y)
                 v = target_weight[joint_id]
                 if v > 0.5:
                     target[joint_id][img_y[0]:img_y[1], img_x[0]:img_x[1]] = \
@@ -233,6 +257,9 @@ class BaseJointsDataset(Dataset):
 
         if self.use_different_joints_weight:
             target_weight = np.multiply(target_weight, self.joints_weight)
+
+        # tt = np.nonzero(target[0])
+        # print(np.transpose(tt))
 
         return target, target_weight
 
@@ -289,8 +316,9 @@ class BaseJointsDataset(Dataset):
 
         # Get 2D keypoints and apply augmentation transforms
         keypoints = self.keypoints[index].copy()
+        # print(keypoints[27])
         item['keypoints'] = torch.from_numpy(self.j2d_processing(keypoints, center, sc*scale, rot, flip)).float()
-
+        # print(item['keypoints'][27])
         item['has_smpl'] = self.has_smpl[index]
         item['has_pose_3d'] = self.has_pose_3d
         item['scale'] = float(sc * scale)
@@ -302,7 +330,7 @@ class BaseJointsDataset(Dataset):
         item['sample_index'] = index
         item['dataset_name'] = self.dataset
 
-        target, target_weight = self.generate_target(item['pose_3d'].numpy())
+        target, target_weight = self.generate_target(item['keypoints'].numpy())
 
         item['target'] = torch.from_numpy(target)
         item['target_weight'] = torch.from_numpy(target_weight)

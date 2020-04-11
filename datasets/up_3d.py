@@ -6,13 +6,13 @@ import numpy as np
 
 from .base_JointsDataset import BaseJointsDataset
 
-class MPIIDataset(torch.utils.data.Dataset):
+class UP3DDataset(torch.utils.data.Dataset):
 
     def __init__(self, options, cfg, **kwargs):
-        self.dataset_list = ['mpii']
-        self.dataset_dict = {'mpii': 0}
+        self.dataset_list = ['up-3d']
+        self.dataset_dict = {'up-3d': 0}
         # self.datasets = [BaseJointsDataset(options, ds, **kwargs) for ds in self.dataset_list]
-        self.dataset = BaseJointsDataset(options, cfg, 'mpii', **kwargs)
+        self.dataset = BaseJointsDataset(options, cfg, 'up-3d', **kwargs)
         # total_length = sum([len(ds) for ds in self.datasets])
         # length_itw = sum([len(ds) for ds in self.datasets])
         self.length =len(self.dataset)

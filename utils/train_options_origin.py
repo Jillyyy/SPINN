@@ -3,39 +3,11 @@ import json
 import argparse
 import numpy as np
 from collections import namedtuple
-import sys
-sys.path.append("..") # Adds higher directory to python modules path.
-from config_hr import cfg
-from config_hr import update_config
 
 class TrainOptions():
 
     def __init__(self):
         self.parser = argparse.ArgumentParser()
-        self.parser.add_argument('--cfg',
-                        help='experiment configure file name',
-                        required=True,
-                        type=str)
-        self.parser.add_argument('opts',
-                            help="Modify config options using the command-line",
-                            default=None,
-                            nargs=argparse.REMAINDER)
-        self.parser.add_argument('--modelDir',
-                            help='model directory',
-                            type=str,
-                            default='')
-        self.parser.add_argument('--logDir',
-                            help='log directory',
-                            type=str,
-                            default='')
-        self.parser.add_argument('--dataDir',
-                            help='data directory',
-                            type=str,
-                            default='')
-        self.parser.add_argument('--prevModelDir',
-                            help='prev Model directory',
-                            type=str,
-                            default='')
 
         req = self.parser.add_argument_group('Required')
         req.add_argument('--name', required=True, help='Name of the experiment')
@@ -62,7 +34,7 @@ class TrainOptions():
         train.add_argument('--summary_steps', type=int, default=100, help='Summary saving frequency')
         train.add_argument('--test_steps', type=int, default=1000, help='Testing frequency during training')
         train.add_argument('--checkpoint_steps', type=int, default=10000, help='Checkpoint saving frequency')
-        train.add_argument('--img_res', type=int, default=256, help='Rescale bounding boxes to size [img_res, img_res] before feeding them in the network') 
+        train.add_argument('--img_res', type=int, default=224, help='Rescale bounding boxes to size [img_res, img_res] before feeding them in the network') 
         train.add_argument('--rot_factor', type=float, default=30, help='Random rotation in the range [-rot_factor, rot_factor]') 
         train.add_argument('--noise_factor', type=float, default=0.4, help='Randomly multiply pixel values with factor in the range [1-noise_factor, 1+noise_factor]') 
         train.add_argument('--scale_factor', type=float, default=0.25, help='Rescale bounding boxes by a factor of [1-scale_factor,1+scale_factor]') 
@@ -86,8 +58,6 @@ class TrainOptions():
     def parse_args(self):
         """Parse input arguments."""
         self.args = self.parser.parse_args()
-        # self.args = parse_args()
-        update_config(cfg, self.args)
         # If config file is passed, override all arguments with the values from the config file
         if self.args.from_json is not None:
             path_to_json = os.path.abspath(self.args.from_json)
@@ -104,7 +74,7 @@ class TrainOptions():
             if not os.path.exists(self.args.checkpoint_dir):
                 os.makedirs(self.args.checkpoint_dir)
             self.save_dump()
-            return self.args, cfg
+            return self.args
 
     def save_dump(self):
         """Store all argument values to a json file.

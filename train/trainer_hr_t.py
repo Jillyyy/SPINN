@@ -11,6 +11,8 @@ from utils.geometry import batch_rodrigues, perspective_projection, estimate_tra
 from utils.renderer import Renderer
 from utils import BaseTrainer
 from utils.loss import JointsMSELoss
+from utils.evaluate import accuracy
+from utils.vis import save_debug_images
 
 import config
 import constants
@@ -25,7 +27,7 @@ class HSTrainer(BaseTrainer):
         self.train_ds = MPIIDataset(self.options, self.cfg, ignore_3d=self.options.ignore_3d, is_train=True)
 
         self.model = HSModel(self.cfg, is_train = True, smpl_mean_params=config.SMPL_MEAN_PARAMS).to(self.device)
-        print(self.model)
+        # print(self.model)
         self.optimizer = torch.optim.Adam(params=self.model.parameters(),
                                           lr=self.options.lr,
                                           weight_decay=0)
@@ -172,6 +174,14 @@ class HSTrainer(BaseTrainer):
             loss_jointsMSE = self.criterion_hm_keypoints(output, target, target_weight)
 
         # loss_jointsMSE = self.criterion_hm_keypoints()
+        _, _, _, pred = accuracy(output.detach().cpu().numpy(),
+                                 target.detach().cpu().numpy())
+        # print(pred.shape)
+        if self.step_count % 100 == 0:
+            # prefix = 'test_%d' % self.step_count
+            prefix = 'test_0'
+            save_debug_images(self.cfg, images, input_batch, target, pred*4, output,
+                              prefix)
 
         pred_output = self.smpl(betas=pred_betas, body_pose=pred_rotmat[:,1:], global_orient=pred_rotmat[:,0].unsqueeze(1), pose2rot=False)
         pred_vertices = pred_output.vertices

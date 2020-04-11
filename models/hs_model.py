@@ -20,7 +20,7 @@ class HSModel(nn.Module):
 
         self.hmr_hr = HMR_HR(cfg, smpl_mean_params)
  
-        self.smpl = SMPL()
+        # self.smpl = SMPL()
 
         if pretrained_checkpoint is not None:
             checkpoint = torch.load(pretrained_checkpoint)

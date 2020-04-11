@@ -1,6 +1,15 @@
 from utils import TrainOptions
-from train import Trainer
+from train.trainer_hr import HSTrainer
 import argparse
+
+if __name__ == '__main__':
+    # args = parse_args()
+    # update_config(cfg, args)
+
+    options, cfg = TrainOptions().parse_args()
+    trainer = HSTrainer(options, cfg)
+    trainer.train()
+
 # from config import cfg
 # from config import update_config
 
@@ -34,11 +43,3 @@ import argparse
     
 #     args = parser.parse_args()
 #     return args
-
-if __name__ == '__main__':
-    # args = parse_args()
-    # update_config(cfg, args)
-
-    options, cfg = TrainOptions().parse_args()
-    trainer = Trainer(options, cfg)
-    trainer.train()

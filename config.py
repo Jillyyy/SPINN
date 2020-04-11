@@ -45,12 +45,14 @@ OPENPOSE_PATH = 'datasets/openpose'
 DATASET_FILES = [ {'h36m-p1': join(DATASET_NPZ_PATH, 'h36m_valid_protocol1.npz'),
                    'h36m-p2': join(DATASET_NPZ_PATH, 'h36m_valid_protocol2.npz'),
                    'lsp': join(DATASET_NPZ_PATH, 'lsp_dataset_test.npz'),
+                   'up-3d': join(DATASET_NPZ_PATH, 'up_3d_lsp_test.npz'),
                    'mpi-inf-3dhp': join(DATASET_NPZ_PATH, 'mpi_inf_3dhp_valid.npz'),
                    '3dpw': join(DATASET_NPZ_PATH, '3dpw_test.npz'),
                   },
 
                   {'h36m': join(DATASET_NPZ_PATH, 'h36m_train.npz'),
                    'lsp-orig': join(DATASET_NPZ_PATH, 'lsp_dataset_original_train.npz'),
+                   'up-3d': join(DATASET_NPZ_PATH, 'up_3d_trainval_SS.npz'),
                    'mpii': join(DATASET_NPZ_PATH, 'mpii_train.npz'),
                    'coco': join(DATASET_NPZ_PATH, 'coco_2014_train.npz'),
                    'lspet': join(DATASET_NPZ_PATH, 'hr-lspet_train.npz'),
@@ -69,6 +71,7 @@ DATASET_FOLDERS = {'h36m': H36M_ROOT,
                    'coco': COCO_ROOT,
                    '3dpw': PW3D_ROOT,
                    'upi-s1h': UPI_S1H_ROOT,
+                   'up-3d': UP_3D_ROOT
                 }
 
 CUBE_PARTS_FILE = 'data/cube_parts.npy'

@@ -13,16 +13,14 @@ class BaseTrainer(object):
     """Base class for Trainer objects.
     Takes care of checkpointing/logging/resuming training.
     """
-    def __init__(self, options, cfg):
+    def __init__(self, options):
         self.options = options
-        self.cfg = cfg
         self.endtime = time.time() + self.options.time_to_run
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         # override this function to define your model, optimizers etc.
         self.init_fn()
         self.saver = CheckpointSaver(save_dir=options.checkpoint_dir)
         self.summary_writer = SummaryWriter(self.options.summary_dir)
-        
 
         self.checkpoint = None
         if self.options.resume and self.saver.exists_checkpoint():
@@ -76,8 +74,7 @@ class BaseTrainer(object):
 
                     # Run validation every test_steps steps
                     if self.step_count % self.options.test_steps == 0:
-                        out_test = self.test()
-                        self.test_summaries(*out_test)
+                        self.test()
                 else:
                     tqdm.write('Timeout reached')
                     self.finalize()
